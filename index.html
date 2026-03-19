@@ -212,7 +212,8 @@
 </div>
 
 <script>
-  const CHARACTERS = "1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.,?!-'()\"".split("");
+  const CHARACTERS = "1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.,:?!+-=/'()\"".split("");
+  //const CHARACTERS = "1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.,?!-'()\"".split("");
   const SAMPLES_PER_CHAR = 10;
   const SIZE = 128;
 
@@ -248,62 +249,66 @@
   function setStatus(msg) {
     statusText.textContent = msg;
   }
-
   function drawGuides() {
-    guideCtx.clearRect(0, 0, SIZE, SIZE);
+  // Clear the guide canvas completely
+  guideCtx.clearRect(0, 0, SIZE, SIZE);
 
-    guideCtx.fillStyle = "#ffffff";
-    guideCtx.fillRect(0, 0, SIZE, SIZE);
+  // Fill the background of the GUIDE canvas with white
+  // This acts as the "paper" behind the drawing layer
+  guideCtx.fillStyle = "#ffffff";
+  guideCtx.fillRect(0, 0, SIZE, SIZE);
 
-    // outer border
-    guideCtx.strokeStyle = "rgba(0,0,0,0.12)";
-    guideCtx.lineWidth = 1;
-    guideCtx.strokeRect(0.5, 0.5, SIZE - 1, SIZE - 1);
+  const line1 = SIZE * 0.25;
+  const line2 = SIZE * 0.50;
+  const baseline = SIZE * 0.75;
+  const centerX = SIZE * 0.50;
 
-    // handwriting guide lines
-    const top = SIZE * 0.20;
-    const mid = SIZE * 0.50;
-    const base = SIZE * 0.80;
-    const left = SIZE * 0.50;
+  guideCtx.beginPath();
+  
+  // 1. Top and Bottom Solid Lines (Blue/Subtle)
+  guideCtx.setLineDash([]);
+  guideCtx.moveTo(0, 0.5);
+  guideCtx.lineTo(SIZE, 0.5);
+  guideCtx.moveTo(0, SIZE - 0.5);
+  guideCtx.lineTo(SIZE, SIZE - 0.5);
 
-    guideCtx.beginPath();
+  // 2. Baseline (Solid - most important line)
+  guideCtx.moveTo(0, baseline + 0.5);
+  guideCtx.lineTo(SIZE, baseline + 0.5);
+  guideCtx.strokeStyle = "rgba(33, 150, 243, 0.5)"; // Stronger blue
+  guideCtx.stroke();
 
-    // top line
-    guideCtx.setLineDash([4, 4]);
-    guideCtx.moveTo(0, top);
-    guideCtx.lineTo(SIZE, top);
+  // 3. Middle and 1/4 lines (Dashed)
+  guideCtx.beginPath();
+  guideCtx.setLineDash([4, 4]);
+  guideCtx.moveTo(0, line1 + 0.5);
+  guideCtx.lineTo(SIZE, line1 + 0.5);
+  guideCtx.moveTo(0, line2 + 0.5);
+  guideCtx.lineTo(SIZE, line2 + 0.5);
+  
+  // 4. Vertical Center (Dotted)
+  guideCtx.moveTo(centerX + 0.5, 0);
+  guideCtx.lineTo(centerX + 0.5, SIZE);
 
-    // middle line
-    guideCtx.moveTo(0, mid);
-    guideCtx.lineTo(SIZE, mid);
+  guideCtx.strokeStyle = "rgba(33, 150, 243, 0.2)"; // Lighter blue
+  guideCtx.stroke();
+  guideCtx.setLineDash([]); // Reset dash for drawing
+}
 
-    // baseline
-    guideCtx.setLineDash([]);
-    guideCtx.moveTo(0, base);
-    guideCtx.lineTo(SIZE, base);
-
-    // vertical center
-    guideCtx.setLineDash([3, 5]);
-    guideCtx.moveTo(left, 0);
-    guideCtx.lineTo(left, SIZE);
-
-    guideCtx.strokeStyle = "rgba(33, 150, 243, 0.35)";
-    guideCtx.lineWidth = 1;
-    guideCtx.stroke();
-    guideCtx.setLineDash([]);
-  }
-
-  function initCanvas() {
-    ctx.clearRect(0, 0, SIZE, SIZE);
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, SIZE, SIZE);
-    ctx.lineWidth = 4;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.strokeStyle = "#000000";
-    drawGuides();
-  }
-
+function initCanvas() {
+  // IMPORTANT: Clear the draw canvas to transparency 
+  // so the guideCanvas underneath is visible.
+  ctx.clearRect(0, 0, SIZE, SIZE);
+  
+  // Set drawing styles
+  ctx.lineWidth = 4;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = "#000000";
+  
+  // Redraw the guides on the background layer
+  drawGuides();
+}
   function startDrawing(e) {
     e.preventDefault();
     isDrawing = true;

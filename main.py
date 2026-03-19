@@ -22,11 +22,11 @@ SIZE_VAR = 0.08            # Normal distribution: standard deviation for scaling
 POS_X_VAR = 1.5            # Normal distribution: horizontal jitter (pixels)
 POS_Y_VAR = 2.5            # Normal distribution: vertical baseline jitter (pixels)
 ROTATION_RANGE = (-3, 3)   # Uniform distribution: min/max rotation (degrees)
-BLUR_RANGE = (0.0, 0.0)    # Uniform distribution: Gaussian blur radius
+BLUR_RANGE = (0.4, 0.4)    # Uniform distribution: Gaussian blur radius
 OPACITY_RANGE = (0.6, 1.0) # Uniform distribution: Ink pressure/opacity (0.0 to 1.0)
 
 # Sprite Sheet Info
-CHARACTERS = list("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.,?!-'()\"")
+CHARACTERS = list("1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.,:?!+-=/'()\"")
 SAMPLES_PER_CHAR = 10
 CELL_SIZE = 128
 
