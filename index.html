@@ -13,6 +13,7 @@
             background: #f0f2f5;
             padding: 2rem;
             color: #333;
+            margin: 0;
         }
         .container {
             background: white;
@@ -20,9 +21,10 @@
             border-radius: 12px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.05);
             text-align: center;
-            max-width: 400px;
+            max-width: 500px;
             width: 100%;
         }
+        /* Main Drawing UI */
         .char-display {
             font-size: 3rem;
             font-family: monospace;
@@ -32,16 +34,25 @@
             border-radius: 8px;
             margin: 10px 0;
         }
-        /* The drawing canvas is fixed to 128x128 */
+        .edit-badge {
+            background: #ff9800;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            display: none;
+            margin-bottom: 10px;
+        }
         #drawCanvas {
             border: 2px solid #ccc;
             border-radius: 4px;
             cursor: crosshair;
             background: #fff;
             margin: 20px 0;
-            touch-action: none; /* Prevents scrolling while drawing on mobile */
+            touch-action: none;
         }
-        .controls button {
+        .controls button, .top-bar button {
             padding: 10px 20px;
             margin: 5px;
             font-size: 1rem;
@@ -51,16 +62,50 @@
             font-weight: bold;
             transition: opacity 0.2s;
         }
-        .controls button:hover { opacity: 0.8; }
+        .controls button:hover, .top-bar button:hover { opacity: 0.8; }
+        
         #clearBtn { background: #ff4d4d; color: white; }
         #nextBtn { background: #4caf50; color: white; }
-        #downloadBtn { background: #2196f3; color: white; display: none; width: 100%; margin-top: 15px;}
+        #cancelEditBtn { background: #9e9e9e; color: white; display: none; }
+        #previewBtn, #closePreviewBtn { background: #673ab7; color: white; }
+        #downloadBtn { background: #2196f3; color: white; margin-top: 15px;}
+        
         .progress { color: #666; font-size: 0.9rem; margin-top: 15px; }
+
+        /* Preview UI */
+        #previewContainer {
+            display: none;
+            width: 100%;
+            max-width: 800px;
+            background: white;
+            padding: 1rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            text-align: center;
+        }
+        .scroll-box {
+            overflow-y: auto;
+            overflow-x: auto;
+            max-height: 70vh;
+            border: 2px solid #eee;
+            border-radius: 8px;
+            margin: 15px 0;
+            background: #fafafa;
+        }
+        #previewCanvas {
+            cursor: pointer;
+            background: white;
+            /* Ensures it scales nicely but maintains clarity */
+            max-width: 100%; 
+            height: auto;
+        }
+        .instruction { font-size: 0.9rem; color: #666; margin-bottom: 10px;}
     </style>
 </head>
 <body>
 
-<div class="container">
+<div class="container" id="drawView">
+    <div class="edit-badge" id="editBadge">EDIT MODE</div>
     <h2>Draw the character:</h2>
     <div class="char-display" id="targetChar">a</div>
     <div>Sample <span id="sampleNum">1</span> of 10</div>
@@ -70,43 +115,61 @@
     <div class="controls" id="drawControls">
         <button id="clearBtn">Clear</button>
         <button id="nextBtn">Save & Next</button>
+        <button id="cancelEditBtn">Cancel Edit</button>
     </div>
-    <button id="downloadBtn">Download Sprite Sheet</button>
+
+    <div style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 15px;">
+        <button id="previewBtn">Preview & Edit Grid</button>
+        <button id="downloadBtn">Download Sprite Sheet</button>
+    </div>
 
     <div class="progress" id="progressText">Character 1 of 61</div>
 </div>
 
+<div id="previewContainer">
+    <h2>Sprite Sheet Preview</h2>
+    <p class="instruction">Click on any character box in the grid to rewrite it.</p>
+    <button id="closePreviewBtn">Back to Drawing</button>
+    
+    <div class="scroll-box">
+        <canvas id="previewCanvas"></canvas>
+    </div>
+</div>
+
 <script>
-    // 26 lowercase, 26 uppercase, and some common punctuation
     const CHARACTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.,?!-'()\"".split("");
     const SAMPLES_PER_CHAR = 10;
-    const SIZE = 128; // 128x128 pixels
+    const SIZE = 128; 
 
+    // Standard progression state
     let currentCharIndex = 0;
     let currentSampleIndex = 0;
 
-    // Set up the drawing canvas
+    // Edit mode state
+    let isEditing = false;
+    let editCharIndex = 0;
+    let editSampleIndex = 0;
+
+    // Canvases
     const canvas = document.getElementById('drawCanvas');
     const ctx = canvas.getContext('2d');
     
-    // Set up the hidden sprite sheet canvas
-    // Width: 10 columns (samples) * 128px
-    // Height: Total characters (rows) * 128px
     const spriteSheet = document.createElement('canvas');
     spriteSheet.width = SAMPLES_PER_CHAR * SIZE; 
     spriteSheet.height = CHARACTERS.length * SIZE;
     const spriteCtx = spriteSheet.getContext('2d');
 
-    // Fill sprite sheet with transparent white (or solid white if you prefer)
+    const previewCanvas = document.getElementById('previewCanvas');
+    const previewCtx = previewCanvas.getContext('2d');
+
+    // Fill sprite sheet with white initially
     spriteCtx.fillStyle = "#ffffff";
     spriteCtx.fillRect(0, 0, spriteSheet.width, spriteSheet.height);
 
-    // Drawing State
+    // Drawing Logic
     let isDrawing = false;
-    let lastX = 0;
-    let lastY = 0;
+    let lastX = 0, lastY = 0;
 
-    // Initialize Canvas settings
     function initCanvas() {
         ctx.fillStyle = "#ffffff";
         ctx.fillRect(0, 0, SIZE, SIZE);
@@ -133,71 +196,148 @@
         [lastX, lastY] = [pos.x, pos.y];
     }
 
-    function stopDrawing() {
-        isDrawing = false;
-    }
+    function stopDrawing() { isDrawing = false; }
 
     function getPos(e) {
         const rect = canvas.getBoundingClientRect();
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-        return {
-            x: clientX - rect.left,
-            y: clientY - rect.top
-        };
+        return { x: clientX - rect.left, y: clientY - rect.top };
     }
 
-    // Event Listeners for Mouse
     canvas.addEventListener('mousedown', startDrawing);
     canvas.addEventListener('mousemove', draw);
     canvas.addEventListener('mouseup', stopDrawing);
     canvas.addEventListener('mouseout', stopDrawing);
-
-    // Event Listeners for Touch (Mobile/Tablet support)
     canvas.addEventListener('touchstart', startDrawing, {passive: false});
     canvas.addEventListener('touchmove', draw, {passive: false});
     canvas.addEventListener('touchend', stopDrawing);
 
-    // UI Updates
+    // Update the main UI
     function updateUI() {
-        if (currentCharIndex >= CHARACTERS.length) {
+        initCanvas();
+        
+        const activeCharIndex = isEditing ? editCharIndex : currentCharIndex;
+        const activeSampleIndex = isEditing ? editSampleIndex : currentSampleIndex;
+
+        if (activeCharIndex >= CHARACTERS.length) {
             document.getElementById('targetChar').textContent = "Done!";
             document.getElementById('sampleNum').textContent = "-";
             document.getElementById('drawControls').style.display = 'none';
-            document.getElementById('downloadBtn').style.display = 'block';
-            canvas.style.pointerEvents = 'none';
             return;
         }
 
-        const char = CHARACTERS[currentCharIndex];
-        // Handle special display for space if you add it, but currently using printable chars
-        document.getElementById('targetChar').textContent = char;
-        document.getElementById('sampleNum').textContent = currentSampleIndex + 1;
-        document.getElementById('progressText').textContent = `Character ${currentCharIndex + 1} of ${CHARACTERS.length}`;
-        initCanvas();
+        document.getElementById('targetChar').textContent = CHARACTERS[activeCharIndex];
+        document.getElementById('sampleNum').textContent = activeSampleIndex + 1;
+        document.getElementById('progressText').textContent = `Progress: Character ${currentCharIndex + 1} of ${CHARACTERS.length}`;
+
+        // Toggle Edit UI vs Normal UI
+        if (isEditing) {
+            document.getElementById('editBadge').style.display = 'inline-block';
+            document.getElementById('nextBtn').textContent = 'Save Correction';
+            document.getElementById('nextBtn').style.background = '#ff9800';
+            document.getElementById('cancelEditBtn').style.display = 'inline-block';
+        } else {
+            document.getElementById('editBadge').style.display = 'none';
+            document.getElementById('nextBtn').textContent = 'Save & Next';
+            document.getElementById('nextBtn').style.background = '#4caf50';
+            document.getElementById('cancelEditBtn').style.display = 'none';
+            document.getElementById('drawControls').style.display = 'block';
+        }
     }
 
-    // Buttons
-    document.getElementById('clearBtn').addEventListener('click', initCanvas);
-
+    // Save Button Logic
     document.getElementById('nextBtn').addEventListener('click', () => {
-        // Calculate coordinates on the sprite sheet
-        // X is determined by the sample number (0 to 9)
-        // Y is determined by the character index (0 to 60+)
-        const destX = currentSampleIndex * SIZE;
-        const destY = currentCharIndex * SIZE;
+        const targetChar = isEditing ? editCharIndex : currentCharIndex;
+        const targetSample = isEditing ? editSampleIndex : currentSampleIndex;
 
-        // Copy current 128x128 drawing to the specific grid spot on the sprite sheet
+        const destX = targetSample * SIZE;
+        const destY = targetChar * SIZE;
+
+        // Erase the old block and draw the new one
+        spriteCtx.fillStyle = "#ffffff";
+        spriteCtx.fillRect(destX, destY, SIZE, SIZE);
         spriteCtx.drawImage(canvas, destX, destY);
 
-        // Advance counters
-        currentSampleIndex++;
-        if (currentSampleIndex >= SAMPLES_PER_CHAR) {
-            currentSampleIndex = 0;
-            currentCharIndex++;
+        if (isEditing) {
+            // Exit edit mode and show the updated preview
+            isEditing = false;
+            openPreview();
+        } else {
+            // Normal progression
+            currentSampleIndex++;
+            if (currentSampleIndex >= SAMPLES_PER_CHAR) {
+                currentSampleIndex = 0;
+                currentCharIndex++;
+            }
+            updateUI();
         }
-        
+    });
+
+    document.getElementById('clearBtn').addEventListener('click', initCanvas);
+
+    document.getElementById('cancelEditBtn').addEventListener('click', () => {
+        isEditing = false;
+        openPreview();
+    });
+
+    // Preview System
+    function openPreview() {
+        document.getElementById('drawView').style.display = 'none';
+        document.getElementById('previewContainer').style.display = 'block';
+
+        // Set dimensions and copy the sprite sheet over
+        previewCanvas.width = spriteSheet.width;
+        previewCanvas.height = spriteSheet.height;
+        previewCtx.drawImage(spriteSheet, 0, 0);
+
+        // Draw a light grid overlay so empty boxes are visible
+        previewCtx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
+        previewCtx.lineWidth = 2;
+        previewCtx.beginPath();
+        for(let x = 0; x <= previewCanvas.width; x += SIZE) {
+            previewCtx.moveTo(x, 0);
+            previewCtx.lineTo(x, previewCanvas.height);
+        }
+        for(let y = 0; y <= previewCanvas.height; y += SIZE) {
+            previewCtx.moveTo(0, y);
+            previewCtx.lineTo(previewCanvas.width, y);
+        }
+        previewCtx.stroke();
+    }
+
+    function closePreview() {
+        document.getElementById('previewContainer').style.display = 'none';
+        document.getElementById('drawView').style.display = 'block';
         updateUI();
+    }
+
+    document.getElementById('previewBtn').addEventListener('click', openPreview);
+    document.getElementById('closePreviewBtn').addEventListener('click', closePreview);
+
+    // Clicking the preview grid triggers Edit Mode
+    previewCanvas.addEventListener('click', (e) => {
+        const rect = previewCanvas.getBoundingClientRect();
+        
+        // Calculate the scale difference between the actual canvas pixels and the CSS rendered size
+        const scaleX = previewCanvas.width / rect.width;
+        const scaleY = previewCanvas.height / rect.height;
+
+        // Get coordinates relative to the actual canvas resolution
+        const canvasX = (e.clientX - rect.left) * scaleX;
+        const canvasY = (e.clientY - rect.top) * scaleY;
+
+        // Convert coordinates to grid indices
+        const clickedSample = Math.floor(canvasX / SIZE);
+        const clickedChar = Math.floor(canvasY / SIZE);
+
+        // Ensure we clicked inside valid bounds
+        if (clickedChar < CHARACTERS.length && clickedSample < SAMPLES_PER_CHAR) {
+            isEditing = true;
+            editCharIndex = clickedChar;
+            editSampleIndex = clickedSample;
+            closePreview(); // This takes us back to the drawing board in edit mode
+        }
     });
 
     document.getElementById('downloadBtn').addEventListener('click', () => {
